@@ -1,3 +1,5 @@
+from itertools import chain
+from ipaddress import ip_address
 import sys
 
 def scan_name(nessus_scan_session, clargs):
@@ -23,7 +25,39 @@ def scan_plugin_raw(nessus_scan_session, clargs):
                 outstring += f'{host["hostname"]}:{port}\n'
     return outstring
 
+# only print the host associated with a given plugin for the given scan
+def scan_plugin_hosts(nessus_scan_session, clargs):
+    if (data := scan_plugin(nessus_scan_session, clargs)) is None:
+        return ''
+    # set {} removes duplicates, casting to an ip_address object sorts
+    # properly, and chaining covers all ports
+    ips = sorted({*chain(
+                (
+                    h['hostname']
+                    for d in data
+                    for p in d['ports'].values()
+                    for h in p
+                )
+            )
+        }, key=ip_address
+    )
+    return '\n'.join(ips)
 
+# only print the host associated with a given plugin for the given scan
+def scan_plugin_hostports(nessus_scan_session, clargs):
+    if (data := scan_plugin(nessus_scan_session, clargs)) is None:
+        return ''
+    # set {} removes duplicates, casting to an ip_address object sorts
+    # properly, and chaining covers all ports
+    ip_ports = sorted(
+        chain(
+            (ip_address(h["hostname"]), int(p.split(" / ")[0]))
+            for d in data
+            for p, hs in d['ports'].items()
+            for h in hs
+        )
+    )
+    return '\n'.join(f'{h}:{p}' for h, p in ip_ports)
 
 
 def subcommands(subparsers):
@@ -39,6 +73,10 @@ def subcommands(subparsers):
     plugin.add_argument('plugin_id', type=int, help='plugin number')
     plugin_subcommands = plugin.add_subparsers()
     plugin_subcommands.add_parser('raw', help='Raw output from plugin').set_defaults(func=scan_plugin_raw)
+    plugin_subcommands.add_parser('hosts', help='Hosts associated with plugin').set_defaults(func=scan_plugin_hosts)
+    plugin_subcommands.add_parser('hostports', help='Hosts and ports associated with plugin').set_defaults(func=scan_plugin_hostports)
+
+    
     
         
     
