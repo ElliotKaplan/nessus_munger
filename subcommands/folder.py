@@ -1,31 +1,21 @@
 import sys
 
-def folder_scans(nessus_session, clargs):
+def folder_scans(nessus_folder_session, clargs):
     folder = clargs.folder
-    descending = clargs.descending
-    resp = nessus_session.get('scans', params={'folder_id': folder})
 
-    scans = resp.json()['scans']
-
+    scans = nessus_folder_session.scan_ids
+    if clargs.descending:
+        scans = scans[::-1]
+    
     # only need scan numbers if this is being piped elsewhere
     if not sys.stdout.isatty():
         return ' '.join(
-            map(
-                str,
-                sorted(
-                    (s['id'] for s in scans),
-                    reverse=descending
-                )
-            )
+            str(s[0]) for s in scans
         )
 
     # print the scan name if this is a tty out
     return '\n'.join(
-        '\t'.join(n)
-        for n in sorted(
-                ((str(s['id']), s['name']) for s in scans),
-                reverse=descending
-        )
+        f'{s[0]}\t{s[1]}' for s in scans
     )
 
 def subcommands(subparsers):

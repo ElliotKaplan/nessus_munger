@@ -1,3 +1,4 @@
+import sys
 import requests
 
 class NessusSession(requests.Session):
@@ -26,3 +27,20 @@ class NessusScanSession(NessusSession):
         resp = self.get('')
         data = resp.json()
         return data['info']['name']
+
+class NessusFolderSession(NessusSession):
+    def __init__(self, folder_number, *args, **kwargs):
+        NessusSession.__init__(self, *args, **kwargs)
+        self.folder_number = folder_number
+        # get the numbers and names of all the scans in the folder
+        resp = self.get('scans', params={'folder_id': self.folder_number})
+        scans = resp.json()['scans']
+        # sort the scans by scan id
+        scans.sort(key=lambda d: d['id'])
+        # create lists for each scan in the folder
+        self.scan_ids = [(s['id'], s['name']) for s in scans]
+        self.scans = [NessusScanSession(s['id'], *args, **kwargs) for s in scans]
+        
+
+        
+    

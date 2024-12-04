@@ -2,9 +2,10 @@
 
 import argparse
 from os import environ
+import sys
 
-from subcommands import folder, scan
-from classes.nessus_session import NessusSession, NessusScanSession
+from subcommands import folder, scan, root
+from classes.nessus_session import NessusSession, NessusScanSession, NessusFolderSession
 
 # typically there's no verification for nessus certs
 from warnings import filterwarnings
@@ -20,11 +21,14 @@ if __name__ == '__main__':
     subparsers = argparser.add_subparsers()
     folder.subcommands(subparsers)
     scan.subcommands(subparsers)
+    root.subcommands(subparsers)
 
     clargs = argparser.parse_args()
-
-    try:
+    # this is a kludge to figure out which subcommand was called, and thus which object needs to be generated
+    if 'folder' in clargs:
+        nessus_session = NessusFolderSession(clargs.folder, clargs.nessus_host, clargs.access_key, clargs.secret_key, clargs.nessus_port)
+    elif 'scan' in clargs:
         nessus_session = NessusScanSession(clargs.scan, clargs.nessus_host, clargs.access_key, clargs.secret_key, clargs.nessus_port)
-    except AttributeError:
+    else:
         nessus_session = NessusSession(clargs.nessus_host, clargs.access_key, clargs.secret_key, clargs.nessus_port)
     print(clargs.func(nessus_session, clargs))
