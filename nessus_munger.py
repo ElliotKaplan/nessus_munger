@@ -31,4 +31,8 @@ if __name__ == '__main__':
         nessus_session = NessusScanSession(clargs.scan, clargs.nessus_host, clargs.access_key, clargs.secret_key, clargs.nessus_port)
     else:
         nessus_session = NessusSession(clargs.nessus_host, clargs.access_key, clargs.secret_key, clargs.nessus_port)
-    print(clargs.func(nessus_session, clargs))
+    # if no function is set, print the help message
+    try:
+        print(clargs.func(nessus_session, clargs))
+    except AttributeError:
+        argparser.print_usage()
