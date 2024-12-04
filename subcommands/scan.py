@@ -6,15 +6,9 @@ def scan_name(nessus_scan_session, clargs):
     return nessus_scan_session.scan_name()
 
 
-# root for reading plugin data
-def scan_plugin(nessus_scan_session, clargs):
-    resp = nessus_scan_session.get(f'/plugins/{clargs.plugin_id}')
-    data = resp.json()
-    return data['outputs']
-
 # prints raw output from plugin
 def scan_plugin_raw(nessus_scan_session, clargs):
-    if (data := scan_plugin(nessus_scan_session, clargs)) is None:
+    if (data := nessus_scan_session.scan_plugin(clargs.plugin_id)) is None:
         return ''
     outstring = ''
     for output in data:
@@ -27,37 +21,38 @@ def scan_plugin_raw(nessus_scan_session, clargs):
 
 # only print the host associated with a given plugin for the given scan
 def scan_plugin_hosts(nessus_scan_session, clargs):
-    if (data := scan_plugin(nessus_scan_session, clargs)) is None:
+    if (data := nessus_scan_session.scan_plugin_hostports(clargs.plugin_id)) is None:
         return ''
-    # set {} removes duplicates, casting to an ip_address object sorts
-    # properly, and chaining covers all ports
-    ips = sorted({*chain(
-                (
-                    h['hostname']
-                    for d in data
-                    for p in d['ports'].values()
-                    for h in p
-                )
-            )
-        }, key=ip_address
-    )
-    return '\n'.join(ips)
+    ips = sorted(set(d[0] for d in data))
+    return '\n'.join(map(str, ips))
 
 # only print the host associated with a given plugin for the given scan
 def scan_plugin_hostports(nessus_scan_session, clargs):
-    if (data := scan_plugin(nessus_scan_session, clargs)) is None:
+    if (data := nessus_scan_session.scan_plugin_hostports(clargs.plugin_id)) is None:
         return ''
-    # set {} removes duplicates, casting to an ip_address object sorts
-    # properly, and chaining covers all ports
-    ip_ports = sorted(
-        chain(
-            (ip_address(h["hostname"]), int(p.split(" / ")[0]))
-            for d in data
-            for p, hs in d['ports'].items()
-            for h in hs
-        )
-    )
+    ip_ports = sorted(data)
     return '\n'.join(f'{h}:{p}' for h, p in ip_ports)
+
+# get all the plugins of a certain criticality associated with a given scan
+def scan_severity(nessus_scan_session, clargs):
+    params = {}
+    if clargs.only_public:
+        params = {
+            'filter.0.quality': 'eq',
+            'filter.0.filter': 'exploit_available',
+            'filter.0.value': 'true',
+            'filter.search_type': 'and',
+            'includeHostDetailsForHostDiscovery': 'true'
+        }
+    resp = nessus_scan_session.get('', params=params)
+    data = resp.json()
+    plugins = {
+        v['plugin_name']: v['plugin_id']
+        for v in dat['vulnerabilities']
+        if v['severity'] == clargs.severity
+    }
+    
+        
 
 
 def subcommands(subparsers):
@@ -66,9 +61,11 @@ def subcommands(subparsers):
 
     subcommands = scan.add_subparsers()
 
+    # metadata on the scan itself
     scans = subcommands.add_parser('name', help='Get the name of the scan')
     scans.set_defaults(func=scan_name)
 
+    # parsing single plugin output
     plugin = subcommands.add_parser('plugin', help='choose the plugin to report')
     plugin.add_argument('plugin_id', type=int, help='plugin number')
     plugin_subcommands = plugin.add_subparsers()
@@ -76,6 +73,11 @@ def subcommands(subparsers):
     plugin_subcommands.add_parser('hosts', help='Hosts associated with plugin').set_defaults(func=scan_plugin_hosts)
     plugin_subcommands.add_parser('hostports', help='Hosts and ports associated with plugin').set_defaults(func=scan_plugin_hostports)
 
+    # grouping by criticality
+    severity = subcommands.add_parser('severity', help='print out the plugins/hosts associated with a given criticality')
+    severity.set_defaults(func=scan_severity)
+    severity.add_argument('severity', type=int, help="severity to find. 4: Critical, 3: High, 2: Medium, 1: Low")
+    severity.add_argument('--only_public', action='store_true', help='set to only return plugins with public exploits asssocated')
     
     
         

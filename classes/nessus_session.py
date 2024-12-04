@@ -1,3 +1,5 @@
+from itertools import chain
+from ipaddress import ip_address
 import sys
 import requests
 
@@ -27,6 +29,24 @@ class NessusScanSession(NessusSession):
         resp = self.get('')
         data = resp.json()
         return data['info']['name']
+
+    def scan_plugin(self, plugin_id):
+        resp = self.get(f'/plugins/{plugin_id}')
+        data = resp.json()
+        return data['outputs']
+        
+    def scan_plugin_hostports(self, plugin_id):
+        # returns the host/port combinations associated with a given plugin
+        data = self.scan_plugin(plugin_id)
+        return list(
+            chain(
+                (ip_address(h["hostname"]), int(p.split(" / ")[0]))
+                for d in data
+                for p, hs in d['ports'].items()
+                for h in hs
+            )
+        )
+
 
 class NessusFolderSession(NessusSession):
     def __init__(self, folder_number, *args, **kwargs):
