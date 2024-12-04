@@ -6,8 +6,8 @@ def folder_list(nessus_session, clargs):
     sortkey = 'name' if clargs.alphasort else 'id'
     flist.sort(key=lambda d: d[sortkey], reverse=clargs.descending)
 
-    if not sys.stdout.isatty:
-        return ' '.join(d['id'] for d in flist)
+    if not sys.stdout.isatty():
+        return ' '.join(str(d['id']) for d in flist)
 
     return '\n'.join(f'{d["id"]}\t{d["name"]}' for d in flist)
 
