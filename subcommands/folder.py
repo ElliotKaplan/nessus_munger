@@ -4,6 +4,10 @@ def folder_scans(nessus_folder_session, clargs):
     folder = clargs.folder
 
     scans = nessus_folder_session.scan_ids
+    # only return certain statuses if desired
+    if clargs.status is not None:
+        scans = [s for s in scans if s[2] == clargs.status]
+
     if clargs.descending:
         scans = scans[::-1]
     # only need scan numbers if this is being piped elsewhere
@@ -51,6 +55,8 @@ def subcommands(subparsers):
 
     subcommands = folder.add_subparsers()
     scans = subcommands.add_parser('scans', help='List the scans in the folder')
+    scans.add_argument('status', default=None, choices=[None, 'running', 'completed', 'paused', 'canceled', 'empty'],
+                       nargs='?', type=str, help='only print certain statuses')
     scans.add_argument('-d', '--descending', action='store_true',
                        help='set to reverse order of list')
     scans.set_defaults(func=folder_scans)
