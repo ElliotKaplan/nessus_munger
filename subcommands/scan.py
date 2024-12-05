@@ -2,9 +2,34 @@ from itertools import chain
 from ipaddress import ip_address
 import sys
 
+from utilities import string_processing
+
 def scan_name(nessus_scan_session, clargs):
     return nessus_scan_session.scan_name()
 
+# wrapper for routines that spit out dictionaries of plugins
+def plugin_summary(func):
+    def wrapped(nessus_scan_session, clargs):
+        plugins = func(nessus_scan_session, clargs)
+        outstring = ''    
+        if sys.stdout.isatty():
+            for pluginid, pluginname in plugins.items():
+                ips = sorted(set(str(d[0]) for d in nessus_scan_session.scan_plugin_hostports(pluginid)))
+                head = f'{pluginid:>10d}: {pluginname} ({len(ips)} Host{"s" if len(ips)!=1 else ""})'
+                outstring += f'{head}\n{"="*len(head)}\n'
+                outstring += '\n'.join(map(str, ips))
+                outstring += '\n\n'
+        else:
+            # assume that this is going to be passed to awk for more
+            # processing. first column is plugin, subsequent columns are
+            # hosts
+            for pluginid, pluginname in plugins.items():
+                ips = sorted(set(str(d[0]) for d in nessus_scan_session.scan_plugin_hostports(pluginid)))
+                outstring += f'{pluginid} {" ".join(map(str, ips))}\n'
+
+        return outstring
+    return wrapped
+        
 
 # prints raw output from plugin
 def scan_plugin_raw(nessus_scan_session, clargs):
@@ -23,6 +48,7 @@ def scan_plugin_raw(nessus_scan_session, clargs):
 def scan_plugin_hosts(nessus_scan_session, clargs):
     if (data := nessus_scan_session.scan_plugin_hostports(clargs.plugin_id)) is None:
         return ''
+    # set eliminates duplicates
     ips = sorted(set(d[0] for d in data))
     return '\n'.join(map(str, ips))
 
@@ -34,26 +60,73 @@ def scan_plugin_hostports(nessus_scan_session, clargs):
     return '\n'.join(f'{h}:{p}' for h, p in ip_ports)
 
 # get all the plugins of a certain criticality associated with a given scan
+@plugin_summary
 def scan_severity(nessus_scan_session, clargs):
-    params = {}
-    if clargs.only_public:
-        params = {
-            'filter.0.quality': 'eq',
-            'filter.0.filter': 'exploit_available',
-            'filter.0.value': 'true',
-            'filter.search_type': 'and',
-            'includeHostDetailsForHostDiscovery': 'true'
-        }
-    resp = nessus_scan_session.get('', params=params)
-    data = resp.json()
-    plugins = {
-        v['plugin_name']: v['plugin_id']
-        for v in dat['vulnerabilities']
-        if v['severity'] == clargs.severity
+    filter_params = {
+        'filter.search_type': 'and',
+        'filter.0.quality': 'eq',
+        'filter.0.filter': 'severity',
+        'filter.0.value': clargs.severity,
+        'filter.1.quality': 'nmatch',
+        'filter.1.filter': 'plugin_name',
+        'filter.1.value': 'TLS',
+        'filter.2.quality': 'nmatch',
+        'filter.2.filter': 'plugin_name',
+        'filter.2.value': 'SSL',
     }
-    
-        
 
+    if clargs.only_public:
+        filterparams.update(
+            {
+                'filter.3.quality': 'eq',
+                'filter.3.filter': 'exploit_available',
+                'filter.3.value': 'true',
+            }
+        )
+        
+    return nessus_scan_session.scan_vulnerabilities(filter_params)
+
+
+# only return tsl  or ssl findings
+@plugin_summary
+def scan_tls(nessus_scan_session, clargs):
+    # gather tls findings of minimum severity
+    # minus 1 is because there is no ge, only gt
+    filter_params = {
+        'filter.search_type': 'and',
+        'filter.0.quality': 'match',
+        'filter.0.filter': 'plugin_name',
+        'filter.0.value': 'TLS',
+        'filter.1.quality': 'gt',
+        'filter.1.filter': 'severity',
+        'filter.1.value': clargs.min_severity-1,
+    }
+    plugins = nessus_scan_session.scan_vulnerabilities(filter_params)
+    # include ssl findings of minimum severity
+    filter_params = {
+        'filter.search_type': 'and',
+        'filter.0.quality': 'match',
+        'filter.0.filter': 'plugin_name',
+        'filter.0.value': 'SSL',
+        'filter.1.quality': 'gt',
+        'filter.1.filter': 'severity',
+        'filter.1.value': clargs.min_severity-1,
+    }
+    plugins.update(nessus_scan_session.scan_vulnerabilities(filter_params))
+
+    return plugins
+
+# only return unsupported software findings
+@plugin_summary
+def scan_unsupported(nessus_scan_session, clargs):
+    filter_params = {
+        'filter.0.quality': 'match',
+        'filter.0.filter': 'plugin_name',
+        'filter.0.value': 'unsupported',
+        'filter.search_type': 'and'
+    }
+    return nessus_scan_session.scan_vulnerabilities(filter_params)
+    
 
 def subcommands(subparsers):
     scan = subparsers.add_parser('scan', help='Routines for getting metadata out of a nessus scan')
@@ -76,8 +149,17 @@ def subcommands(subparsers):
     # grouping by criticality
     severity = subcommands.add_parser('severity', help='print out the plugins/hosts associated with a given criticality')
     severity.set_defaults(func=scan_severity)
-    severity.add_argument('severity', type=int, help="severity to find. 4: Critical, 3: High, 2: Medium, 1: Low")
+    severity.add_argument('severity', type=int, help="severity to find. 4: Critical, 3: High, 2: Medium, 1: Low\nThis specifically ignores SSL/TLS related findings and unsupported software")
     severity.add_argument('--only_public', action='store_true', help='set to only return plugins with public exploits asssocated')
+
+    # tls/ssl related vulns
+    tlsssl = subcommands.add_parser('tls', help='print out the plugins/hosts associated with TLS/SSL issues')
+    tlsssl.add_argument('--min_severity', type=int, default=3, help="mimimum severity to list")
+    tlsssl.set_defaults(func=scan_tls)
+
+    # Unsupported software
+    subcommands.add_parser('unsupported', help='print out the plugins/hosts associated with unsupported software').set_defaults(func=scan_unsupported)
+    
     
     
         
