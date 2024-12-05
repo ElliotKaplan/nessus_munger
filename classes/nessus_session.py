@@ -72,6 +72,15 @@ class NessusFolderSession(NessusSession):
         self.scans = [NessusScanSession(s['id'], *args, **kwargs) for s in scans]
         
 
+    def folder_plugin(self, plugin_id):
+        # kludge to handle bad plugouts
+        plugout = (s.scan_plugin(plugin_id) for s in self.scans)
+        return list(
+            chain(
+                *(p for p in plugout if p is not None)
+            )
+        )
+    
     def folder_plugin_hostports(self, plugin_id):
         return list(
             chain(

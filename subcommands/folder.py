@@ -16,6 +16,21 @@ def folder_scans(nessus_folder_session, clargs):
         f'{s[0]}\t{s[1]}' for s in scans
     )
 
+
+def folder_plugin_raw(nessus_folder_session, clargs):
+    if (data := nessus_folder_session.folder_plugin(clargs.plugin_id)) is None:
+        return ''
+    outstring = ''
+    for output in data:
+        outstring += f'{"="*72}\n'
+        outstring += f'{output["plugin_output"]}\n'
+        for port, portout in output['ports'].items():
+            port = port.split('/')[0].strip()
+            for host in portout:
+                outstring += f'{host["hostname"]}:{port}\n'
+    return outstring
+    
+
 def folder_plugin_hosts(nessus_folder_session, clargs):
     if (data := nessus_folder_session.folder_plugin_hostports(clargs.plugin_id)) is None:
         return ''
@@ -43,6 +58,7 @@ def subcommands(subparsers):
     plugin = subcommands.add_parser('plugin', help='choose the plugin to report')
     plugin.add_argument('plugin_id', type=int, help='plugin number')
     plugin_subcommands = plugin.add_subparsers()
+    plugin_subcommands.add_parser('raw', help='Hosts associated with plugin').set_defaults(func=folder_plugin_raw)
     plugin_subcommands.add_parser('hosts', help='Hosts associated with plugin').set_defaults(func=folder_plugin_hosts)
     plugin_subcommands.add_parser('hostports', help='Hosts and ports associated with plugin').set_defaults(func=folder_plugin_hostports)
 
