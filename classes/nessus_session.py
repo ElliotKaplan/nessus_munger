@@ -47,6 +47,16 @@ class NessusScanSession(NessusSession):
             )
         )
 
+    # returns a dictionary of plugins matching a given filter
+    def scan_vulnerabilities(self, filter_params=None):
+        resp = self.get('', params=filter_params)
+        data = resp.json()
+        return {
+            v['plugin_id']: v['plugin_name']
+            for v in data['vulnerabilities']
+        }
+
+
 
 class NessusFolderSession(NessusSession):
     def __init__(self, folder_number, *args, **kwargs):
