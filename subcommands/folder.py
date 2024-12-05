@@ -11,9 +11,9 @@ def folder_scans(nessus_folder_session, clargs):
         return ' '.join(
             str(s[0]) for s in scans
         )
-    # print the scan name if this is a tty out
+    # print the scan name and status if this is a tty out
     return '\n'.join(
-        f'{s[0]}\t{s[1]}' for s in scans
+        f'{s[0]}\t{s[2]}\t{s[1]}' for s in scans
     )
 
 
@@ -54,6 +54,7 @@ def subcommands(subparsers):
     scans.add_argument('-d', '--descending', action='store_true',
                        help='set to reverse order of list')
     scans.set_defaults(func=folder_scans)
+    
 
     plugin = subcommands.add_parser('plugin', help='choose the plugin to report')
     plugin.add_argument('plugin_id', type=int, help='plugin number')

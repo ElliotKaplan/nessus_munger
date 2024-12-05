@@ -68,7 +68,7 @@ class NessusFolderSession(NessusSession):
         # sort the scans by scan id
         scans.sort(key=lambda d: d['id'])
         # create lists for each scan in the folder
-        self.scan_ids = [(s['id'], s['name']) for s in scans]
+        self.scan_ids = [(s['id'], s['name'], s['status']) for s in scans]
         self.scans = [NessusScanSession(s['id'], *args, **kwargs) for s in scans]
         
 
