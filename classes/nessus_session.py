@@ -26,7 +26,7 @@ class NessusSession(requests.Session):
         # get the api key for the webapp
         resp = self.get(self.root)
         nessus_source = re.compile('<script src="(?P<link>nessus\\d\\.js?[^"]*)">').search(resp.text).group('link')
-        resp = self.get(f'{self.root}{nessus_source}')
+        resp = self.get(f'{self.root}/{nessus_source}')
         apikey = re.compile('\\b[\\da-f]{8}(-[\\da-f]{4}){4}[\\da-f]{8}\\b', re.I).search(resp.text).group(0)
 
         self.headers['X-API-Token'] = apikey
