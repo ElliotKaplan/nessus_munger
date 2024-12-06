@@ -10,7 +10,7 @@ class NessusSession(requests.Session):
         self.verify = False
         self.host = host
         self.port = port
-        self.root = f'https://{host}:{port}/'
+        self.root = f'https://{host}:{port}'
         self.headers['Origin'] = self.root
         # can operate as a faked browser session instead of an api
         if (x_api_token is not None) and (x_cookie is not None):
@@ -42,15 +42,16 @@ class NessusSession(requests.Session):
         return resp
 
     def request(self, method, url, **kwargs):
-        if not url.startswith('https://'):
-            url = self.root + url
+        url = url if url.startswith('http') else self.root + url
         return requests.Session.request(self, method, url, **kwargs)
+
+    
 
 class NessusScanSession(NessusSession):
     def __init__(self, scan_number, *args, history_id=None, **kwargs):
         NessusSession.__init__(self, *args, **kwargs)
         self.scan_number = scan_number
-        self.root += 'scans/{}'.format(self.scan_number)
+        self.root += '/scans/{}'.format(self.scan_number)
         self.base_query = {'history_id': history_id}
 
     def scan_launch(self):
@@ -96,7 +97,7 @@ class NessusFolderSession(NessusSession):
         NessusSession.__init__(self, *args, **kwargs)
         self.folder_number = folder_number
         # get the numbers and names of all the scans in the folder
-        resp = self.get('scans', params={'folder_id': self.folder_number})
+        resp = self.get('/scans', params={'folder_id': self.folder_number})
         scans = resp.json()['scans']
         # sort the scans by scan id
         scans.sort(key=lambda d: d['id'])

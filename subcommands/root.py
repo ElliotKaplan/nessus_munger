@@ -2,7 +2,7 @@ import sys
 from getpass import getpass
 
 def folder_list(nessus_session, clargs):
-    resp = nessus_session.get('folders')
+    resp = nessus_session.get('/folders')
     flist = resp.json()['folders']
     sortkey = 'name' if clargs.alphasort else 'id'
     flist.sort(key=lambda d: d[sortkey], reverse=clargs.descending)
