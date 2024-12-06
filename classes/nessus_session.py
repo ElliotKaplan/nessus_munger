@@ -38,7 +38,7 @@ class NessusSession(requests.Session):
         )
         assert resp.status_code == 200, 'Logon failed for some reason'
         data = resp.json()
-        self.cookies['X-Cookie'] = f'token={data["token"]}'
+        self.headers['X-Cookie'] = f'token={data["token"]}'
         return resp
 
     def request(self, method, url, **kwargs):
