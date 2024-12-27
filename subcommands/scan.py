@@ -1,5 +1,6 @@
 from itertools import chain
 from ipaddress import ip_address
+from collections import Counter
 import sys
 
 from utilities import string_processing
@@ -29,7 +30,22 @@ def plugin_summary(func):
 
         return outstring
     return wrapped
-        
+
+# get the scan plugin description
+def scan_plugin_description(nessus_scan_session, clargs):
+    resp = nessus_scan_session.get(f'/plugins/{clargs.plugin_id}')
+    data = resp.json()
+    return data['info']['plugindescription']['pluginattributes']['description']
+
+def scan_plugin_cves(nessus_scan_session, clargs):
+    resp = nessus_scan_session.get(f'/plugins/{clargs.plugin_id}')
+    data = resp.json()
+    refs = data['info']['plugindescription']['pluginattributes']['ref_information']['ref']
+    out = ''
+    for ref in refs:
+        if ref['name'] == 'cve':
+            out += '\n'.join(ref['values']['value'])
+    return out
 
 # prints raw output from plugin
 def scan_plugin_raw(nessus_scan_session, clargs):
@@ -126,7 +142,32 @@ def scan_unsupported(nessus_scan_session, clargs):
         'filter.search_type': 'and'
     }
     return nessus_scan_session.scan_vulnerabilities(filter_params)
-    
+
+@plugin_summary
+def scan_cpe(nessus_scan_session, clargs):
+    filter_params = {
+        'filter.0.quality': 'match',
+        'filter.0.filter': 'cpe',
+        'filter.0.value': clargs.cpe_tag,
+        'filter.search_type': 'and',
+        'filter.1.quality': 'gt',
+        'filter.1.filter': 'severity',
+        'filter.1.value': clargs.min_severity-1,
+    }
+    return nessus_scan_session.scan_vulnerabilities(filter_params)
+
+
+# list the unique values of cpe
+def scan_cpe_list(nessus_scan_session, clargs):
+    resp = nessus_scan_session.get('')
+    data = resp.json()
+    cpes = Counter(v['cpe'] for v in data['vulnerabilities'])
+    nocpe = cpes.pop(None)
+    padwidth = max(map(len, cpes.keys()))
+    out = '\n'.join(
+        f'{key:<{padwidth}s} {cpes[key]}' for key in sorted(cpes))
+    out += f'\n{"None":<{padwidth}s} {cpes[None]}'
+    return out
 
 def subcommands(subparsers):
     scan = subparsers.add_parser('scan', help='Routines for getting metadata out of a nessus scan')
@@ -145,6 +186,8 @@ def subcommands(subparsers):
     plugin_subcommands.add_parser('raw', help='Raw output from plugin').set_defaults(func=scan_plugin_raw)
     plugin_subcommands.add_parser('hosts', help='Hosts associated with plugin').set_defaults(func=scan_plugin_hosts)
     plugin_subcommands.add_parser('hostports', help='Hosts and ports associated with plugin').set_defaults(func=scan_plugin_hostports)
+    plugin_subcommands.add_parser('description', help='Read the plugin description').set_defaults(func=scan_plugin_description)
+    plugin_subcommands.add_parser('cves', help='Read the plugin cves').set_defaults(func=scan_plugin_cves)
 
     # grouping by criticality
     severity = subcommands.add_parser('severity', help='print out the plugins/hosts associated with a given criticality')
@@ -159,6 +202,14 @@ def subcommands(subparsers):
 
     # Unsupported software
     subcommands.add_parser('unsupported', help='print out the plugins/hosts associated with unsupported software').set_defaults(func=scan_unsupported)
+
+    cpe = subcommands.add_parser('cpe', help='only return plugins associated with a given cpe')
+    cpe.add_argument('cpe_tag', type=str, help='cpe label')
+    cpe.add_argument('--min_severity', type=int, default=3, help="mimimum severity to list")
+    cpe.set_defaults(func=scan_cpe)
+    cpe_subcommands = cpe.add_subparsers()
+    cpe_subcommands.add_parser('list', help='list avaiable cpes for the scan (requires cpe input)').set_defaults(func=scan_cpe_list)
+    
     
     
     
