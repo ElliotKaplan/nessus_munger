@@ -2,6 +2,7 @@ from itertools import chain
 from ipaddress import ip_address
 from collections import Counter
 import sys
+import json
 
 from utilities import string_processing
 
@@ -12,6 +13,15 @@ def scan_allhosts(nessus_scan_session, clargs):
     resp = nessus_scan_session.get('', params={'limit': 2500, 'includeHostDetailsForHostDiscovery': True})
     data = resp.json()
     return '\n'.join(h['hostname'] for h in  data['hosts'])
+
+def scan_hostdetails(nessus_scan_session, clargs):
+    resp = nessus_scan_session.get('', params={'limit': 2500, 'includeHostDetailsForHostDiscovery': True})
+    data = resp.json()
+    details = [
+        nessus_scan_session.get(f'/hosts/{h["host_id"]}').json()['info']
+        for h in data['hosts']
+    ]
+    return json.dumps(details)
     
 # wrapper for routines that spit out dictionaries of plugins
 def plugin_summary(func):
@@ -180,13 +190,16 @@ def subcommands(subparsers):
 
     subcommands = scan.add_subparsers()
 
-    # metadata on the scan itself
+    # metadata on the scan/hosts  itself
     scans = subcommands.add_parser('name', help='Get the name of the scan')
     scans.set_defaults(func=scan_name)
 
     allhosts = subcommands.add_parser('allhosts', help='list the hosts in the scan')
     allhosts.set_defaults(func=scan_allhosts)
 
+    hostdetails = subcommands.add_parser('hostdetails', help='list the hosts in the scan')
+    hostdetails.set_defaults(func=scan_hostdetails)
+    
     # parsing single plugin output
     plugin = subcommands.add_parser('plugin', help='choose the plugin to report')
     plugin.add_argument('plugin_id', type=int, help='plugin number')
