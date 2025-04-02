@@ -8,6 +8,11 @@ from utilities import string_processing
 def scan_name(nessus_scan_session, clargs):
     return nessus_scan_session.scan_name()
 
+def scan_allhosts(nessus_scan_session, clargs):
+    resp = nessus_scan_session.get('', params={'limit': 2500, 'includeHostDetailsForHostDiscovery': True})
+    data = resp.json()
+    return '\n'.join(h['hostname'] for h in  data['hosts'])
+    
 # wrapper for routines that spit out dictionaries of plugins
 def plugin_summary(func):
     def wrapped(nessus_scan_session, clargs):
@@ -178,6 +183,9 @@ def subcommands(subparsers):
     # metadata on the scan itself
     scans = subcommands.add_parser('name', help='Get the name of the scan')
     scans.set_defaults(func=scan_name)
+
+    allhosts = subcommands.add_parser('allhosts', help='list the hosts in the scan')
+    allhosts.set_defaults(func=scan_allhosts)
 
     # parsing single plugin output
     plugin = subcommands.add_parser('plugin', help='choose the plugin to report')
