@@ -171,6 +171,18 @@ def scan_cpe(nessus_scan_session, clargs):
     }
     return nessus_scan_session.scan_vulnerabilities(filter_params)
 
+@plugin_summary
+def scan_exploit(nessus_scan_session, clargs):
+    filter_params = {
+        'filter.0.quality': 'eq',
+        'filter.0.filter': 'exploit_available',
+        'filter.0.value': 'true',
+        'filter.search_type': 'and',
+        'filter.1.quality': 'gt',
+        'filter.1.filter': 'severity',
+        'filter.1.value': clargs.min_severity-1,
+    }
+    return nessus_scan_session.scan_vulnerabilities(filter_params)
 
 # list the unique values of cpe
 def scan_cpe_list(nessus_scan_session, clargs):
@@ -231,6 +243,9 @@ def subcommands(subparsers):
     cpe_subcommands = cpe.add_subparsers()
     cpe_subcommands.add_parser('list', help='list avaiable cpes for the scan (requires cpe input)').set_defaults(func=scan_cpe_list)
     
+    exploit = subcommands.add_parser('exploit', help='only return plugins that indicate that there is a public exploit')
+    exploit.add_argument('--min_severity', type=int, default=3, help="mimimum severity to list")
+    exploit.set_defaults(func=scan_exploit)
     
     
     
