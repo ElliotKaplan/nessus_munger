@@ -107,7 +107,7 @@ def scan_severity(nessus_scan_session, clargs):
     }
 
     if clargs.only_public:
-        filterparams.update(
+        filter_params.update(
             {
                 'filter.3.quality': 'eq',
                 'filter.3.filter': 'exploit_available',
